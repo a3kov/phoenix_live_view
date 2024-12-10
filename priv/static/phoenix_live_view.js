@@ -116,6 +116,8 @@ var LiveView = (() => {
   var PHX_UPDATE = "update";
   var PHX_STREAM = "stream";
   var PHX_STREAM_REF = "data-phx-stream";
+  var PHX_PORTAL = "portal";
+  var PHX_PORTAL_REF = "data-phx-portal";
   var PHX_KEY = "key";
   var PHX_PRIVATE = "phxPrivate";
   var PHX_AUTO_RECOVER = "auto-recover";
@@ -2003,6 +2005,7 @@ removing illegal node: "${(childNode.outerHTML || childNode.nodeValue).trim()}"
       this.cidPatch = isCid(this.targetCID);
       this.pendingRemoves = [];
       this.phxRemove = this.liveSocket.binding("remove");
+      this.portal = this.liveSocket.binding(PHX_PORTAL);
       this.targetContainer = this.isCIDPatch() ? this.targetCIDContainer(html) : container;
       this.callbacks = {
         beforeadded: [],
@@ -2072,6 +2075,15 @@ removing illegal node: "${(childNode.outerHTML || childNode.nodeValue).trim()}"
           addChild: (parent, child) => {
             let { ref, streamAt } = this.getStreamInsert(child);
             if (ref === void 0) {
+              if (child.getAttribute && child.getAttribute(PHX_PORTAL_REF) !== null) {
+                const targetId = child.getAttribute(PHX_PORTAL_REF);
+                const portalTarget = dom_default.byId(targetId);
+                child.removeAttribute(this.portal);
+                if (portalTarget.contains(child)) {
+                  return;
+                }
+                return portalTarget.appendChild(child);
+              }
               return parent.appendChild(child);
             }
             this.setStreamRef(child, ref);
@@ -2201,6 +2213,19 @@ removing illegal node: "${(childNode.outerHTML || childNode.nodeValue).trim()}"
               return false;
             }
             dom_default.copyPrivates(toEl, fromEl);
+            if (fromEl.hasAttribute(this.portal) || toEl.hasAttribute(this.portal)) {
+              const targetId = toEl.getAttribute(this.portal);
+              const portalTarget = dom_default.byId(targetId);
+              toEl.removeAttribute(this.portal);
+              toEl.setAttribute(PHX_PORTAL_REF, targetId);
+              const existing = document.getElementById(fromEl.id);
+              if (existing && portalTarget.contains(existing)) {
+                return existing;
+              } else {
+                portalTarget.appendChild(fromEl);
+                return fromEl;
+              }
+            }
             if (isFocusedFormEl && fromEl.type !== "hidden" && !focusedSelectChanged) {
               this.trackBefore("updated", fromEl, toEl);
               dom_default.mergeFocusedInput(fromEl, toEl);
